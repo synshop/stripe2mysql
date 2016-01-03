@@ -1,21 +1,58 @@
 <?php
 
 $s2m = new strip2mysql();
+
+// verify() currently die()s if there's any errors
 $s2m->verify();
 
+$subscribers = $s2m->getSubscribers();
+
+foreach($subscribers as $key => $value){
+	print "$key => $value\n";
+}
 
 
 class strip2mysql{
 
+	// TODO - refactor to return error object instead of just die()
+
+
 	var $s2mConfig = array();
 	var $dbh = null;
 	var $subscribers = array();
+	var $constructError = true;
+
+	function __construct(){
+		if (is_file('config.php')) {
+			require_once 'config.php';
+			if (isset($s2mConfig) && is_array($s2mConfig)){
+				$this->s2mConfig = $s2mConfig;
+				if (isset($this->s2mConfig['api_path'])){
+					require_once $this->s2mConfig['api_path']. '/init.php';
+					$this->constructError = false;
+				}
+			}
+		}
+	}
 
 	function getSubscribers(){
 		// TODO write code!
+		$result = array();
+		\Stripe\Stripe::setApiKey($this->s2mConfig['stripe_api_key']);
+		$subscribers = \Stripe\Customer::all(array("limit" => 3));
+		if (is_array($subscribers)){
+			foreach($subscribers as $subscriber){
+				print_r($subscriber);
+			}
+		}
+		return $result ;
 	}
 
 	function populateDB(){
+		// get database handle if need be
+		if ($this->dbh == null){
+			$this->_initializeDbh();
+		}
 		// TODO write code
 	}
 
@@ -38,8 +75,8 @@ class strip2mysql{
 
 		// check to make sure we have all the config vars
 		if(!isset($s2mConfig) || !is_array($s2mConfig)){
-			die($errorStart . ' "$s2mConfig" is not defined correctly.  Check your "config.php" ' .
-				'file and see "config.dist.php" for reference' . $errorEnd);
+			die($errorStart . ' "$s2mConfig" array is not defined correctly correctly in your "config.php" ' .
+				'file.  See "config.dist.php" for reference' . $errorEnd);
 		}
 		foreach($requiredConfVars as $key){
 			if (!isset($s2mConfig[$key])){
@@ -104,14 +141,13 @@ class strip2mysql{
 
 		// try connecting to stripe with API secret, get one customer
 		try{
-			require_once $this->s2mConfig['api_path']. '/init.php';
-			\Stripe\Stripe::setApiKey("sk_test_BQokikJOvBiI2HlWgH4olfQ2");
+			\Stripe\Stripe::setApiKey($this->s2mConfig['stripe_api_key']);
 			$sampleCustomer = \Stripe\Customer::all(array("limit" => 3));
 		} catch(\Stripe\Error\Card $ex) {
 			die($errorStart . 'Could not connect to Stripe API with secret to fetch 1 customer as a test.  Error is: ' .
 				$ex->getMessage() . $errorEnd);
 		}
-		print_r('$sampleCustomer: ' . $sampleCustomer . $errorEnd);
+
 	}
 
 	// TODO this code untested
